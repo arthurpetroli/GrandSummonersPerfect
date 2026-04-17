@@ -8,6 +8,7 @@ import {
   ModeHubPayload,
   TeamComp,
   TeamRecommendation,
+  TierlistDetailResponse,
   Tierlist,
   UnitProfile,
 } from "@/lib/types";
@@ -47,18 +48,38 @@ export async function getSearchResults(params: Record<string, string>): Promise<
   bosses: Array<{ id: string; slug: string; name: string; type: string }>;
   guides: Array<{ id: string; slug: string; name: string; type: string }>;
   comps: Array<{ id: string; slug: string; name: string; type: string }>;
+  external_units?: Array<{ id: string; slug: string; name: string; type: string }>;
 }> {
   const query = `?${new URLSearchParams(params).toString()}`;
   return fetchJson(`/search${query}`);
 }
 
-export async function getUnits(params?: Record<string, string>): Promise<ApiCollection<UnitProfile>> {
+export async function getUnits(params?: Record<string, string>): Promise<
+  ApiCollection<UnitProfile> & {
+    page?: number;
+    page_size?: number;
+    total_pages?: number;
+    sort_by?: string;
+    sort_dir?: string;
+    source_type?: Record<string, string>;
+  }
+> {
   const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-  return fetchJson<ApiCollection<UnitProfile>>(`/units${query}`);
+  return fetchJson(`/units${query}`);
 }
 
-export async function getUnit(slug: string): Promise<{ item: UnitProfile; substitutes: UnitProfile[]; synergies: UnitProfile[] }> {
-  return fetchJson<{ item: UnitProfile; substitutes: UnitProfile[]; synergies: UnitProfile[] }>(`/units/${slug}`);
+export async function getUnit(slug: string): Promise<{
+  item: UnitProfile;
+  substitutes: UnitProfile[];
+  synergies: UnitProfile[];
+  external_source?: boolean;
+}> {
+  return fetchJson<{
+    item: UnitProfile;
+    substitutes: UnitProfile[];
+    synergies: UnitProfile[];
+    external_source?: boolean;
+  }>(`/units/${slug}`);
 }
 
 export async function getEquip(slug: string): Promise<{ item: EquipProfile; substitutes: EquipProfile[] }> {
@@ -107,17 +128,8 @@ export async function getTierlists(params?: Record<string, string>): Promise<Api
   return fetchJson<ApiCollection<Tierlist>>(`/tierlists${query}`);
 }
 
-export async function getTierlist(slug: string): Promise<{
-  item: Tierlist;
-  grouped_entries: Record<string, Array<Record<string, unknown>>>;
-  change_history: Array<{ version: string; change: string; reason: string }>;
-  methodology: {
-    category: string;
-    criteria: string[];
-    notes: string[];
-  };
-}> {
-  return fetchJson(`/tierlists/${slug}`);
+export async function getTierlist(slug: string): Promise<TierlistDetailResponse> {
+  return fetchJson<TierlistDetailResponse>(`/tierlists/${slug}`);
 }
 
 export async function getGuides(params?: Record<string, string>): Promise<ApiCollection<Guide>> {
@@ -190,6 +202,130 @@ export async function getAdminSources(): Promise<{ items: Array<Record<string, u
   const response = await fetch(`${API_BASE}/api/v1/admin/sources`, { cache: "no-store" });
   if (!response.ok) {
     throw new Error("Failed to fetch admin sources");
+  }
+  return response.json();
+}
+
+export async function getAdminSourceMappings(params?: { entity_type?: string }): Promise<{ items: Array<Record<string, unknown>>; count: number }> {
+  const query = params?.entity_type ? `?entity_type=${encodeURIComponent(params.entity_type)}` : "";
+  const response = await fetch(`${API_BASE}/api/v1/admin/source-mappings${query}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Failed to fetch admin source mappings");
+  }
+  return response.json();
+}
+
+export async function getAdminTierlistDrafts(params?: { slug?: string }): Promise<{ items: Array<Record<string, unknown>>; count: number }> {
+  const query = params?.slug ? `?slug=${encodeURIComponent(params.slug)}` : "";
+  const response = await fetch(`${API_BASE}/api/v1/admin/tierlists/drafts${query}`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Failed to fetch admin tierlist drafts");
+  }
+  return response.json();
+}
+
+export async function getAdminSyncStatus(): Promise<{
+  status: string;
+  sync: Record<string, unknown>;
+  recent_jobs: Array<Record<string, unknown>>;
+}> {
+  const response = await fetch(`${API_BASE}/api/v1/admin/sync/status`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Failed to fetch admin sync status");
+  }
+  return response.json();
+}
+
+export async function postAdminSourceImport(payload: {
+  source_id: string;
+  entity_type: string;
+  spreadsheet_url?: string;
+  gid?: string;
+  dry_run?: boolean;
+}): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/v1/admin/sources/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to start source import");
+  }
+  return response.json();
+}
+
+export async function postAdminRunSync(payload?: { force?: boolean }): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/v1/admin/sync/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload ?? {}),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to run sync");
+  }
+  return response.json();
+}
+
+export async function postAdminSyncImages(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/v1/admin/sync/images`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to sync images");
+  }
+  return response.json();
+}
+
+export async function postAdminSyncGsinfoUnits(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/v1/admin/sync/gsinfo-units`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to sync GSInfo units");
+  }
+  return response.json();
+}
+
+export async function getAdminGsinfoUnitsStatus(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/v1/admin/sync/gsinfo-units/status`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to fetch GSInfo units status");
+  }
+  return response.json();
+}
+
+export async function getSyncStatus(): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/v1/admin/sync/status`, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error("Failed to fetch sync status");
+  }
+  return response.json();
+}
+
+export async function postAdminPublish(payload: {
+  entity_type: string;
+  entity_id: string;
+  reviewer?: string;
+  change_notes?: string[];
+}): Promise<Record<string, unknown>> {
+  const response = await fetch(`${API_BASE}/api/v1/admin/publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error("Failed to publish admin entity");
   }
   return response.json();
 }

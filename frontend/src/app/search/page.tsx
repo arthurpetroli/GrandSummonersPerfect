@@ -25,6 +25,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         bosses: [],
         guides: [],
         comps: [],
+        external_units: [],
       };
 
   return (
@@ -73,6 +74,22 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               ))}
               {!results.units.length ? <li>- sem resultados</li> : null}
             </ul>
+
+              {results.external_units && results.external_units.length > 0 ? (
+              <>
+                <p className="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-accent">External DB</p>
+                <ul className="mt-2 space-y-1 text-sm text-textSoft">
+                  {results.external_units.map((item) => (
+                    <li key={item.id}>
+                      <Link href={`/units/${item.slug}`} className="hover:text-text">
+                        - {item.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] text-textSoft">Use para abrir detalhes completos mesmo quando a unit ainda nao estiver no banco curado local.</p>
+              </>
+            ) : null}
           </article>
 
           <article className="rounded-xl border border-line bg-panel p-4">

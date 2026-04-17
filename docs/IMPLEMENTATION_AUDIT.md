@@ -1,6 +1,6 @@
 # Grand Summoners Companion - Implementation Audit
 
-Date: 2026-04-08
+Date: 2026-04-17
 
 This audit verifies what was requested in the prompt and what is currently implemented in this repository.
 
@@ -35,7 +35,7 @@ Legend:
 
 ### 3) Technical architecture (frontend/backend/data/search/jobs/ingestion)
 
-- Status: Partial
+- Status: Implemented (MVP+) / Partial (production infra)
 - Implemented:
   - Next.js + TypeScript frontend.
   - FastAPI backend.
@@ -43,7 +43,7 @@ Legend:
   - Ingestion pipeline skeleton with raw/normalize/validate/publish layers.
 - Partial/Planned:
   - Redis and job workers (Celery/RQ) not yet wired.
-  - Runtime repository is in-memory seeded data, not persistent DB.
+  - Runtime repository remains in-memory for gameplay entities, but editorial workflow persistence is now file-backed.
 - Files:
   - `backend/app/main.py`
   - `backend/app/sql/schema.sql`
@@ -70,11 +70,13 @@ Legend:
 
 ### 6) Tier list system
 
-- Status: Implemented (MVP)
+- Status: Implemented (MVP+) 
 - Evidence:
   - Multiple tier list categories generated and exposed.
   - Methodology and change history endpoints.
   - Grouped entries by tier with contextual explanation fields.
+  - Entity metadata resolution for tier entries (name/slug/href) and substitute entity mapping.
+  - Auto-fill safeguards for sparse mode tierlists.
 - Files:
   - `backend/app/repositories/memory_repo.py`
   - `backend/app/services/tierlist.py`
@@ -121,13 +123,14 @@ Legend:
 - Status: Implemented
 - Evidence:
   - All focus areas are present and connected from UI to API.
+  - Admin now includes draft tier change lifecycle and source mapping visibility.
 
 ### 11) Evolution planning (V2/V3)
 
-- Status: Partial
+- Status: Implemented (documented roadmap + baseline hooks)
 - Evidence:
   - Architecture supports growth (schema, ingestion layers, source mapping, editorial flow).
-  - Explicit V2/V3 roadmap document was not yet present before this audit.
+  - API and admin UI now expose draft/publish paths, enabling incremental migration to DB-backed editorial operations.
 
 ## Validation Performed
 
@@ -136,14 +139,14 @@ Legend:
 - Command:
   - `backend/.venv/bin/pytest`
 - Result:
-  - 9 tests passed
+  - expanded test suite passing (tierlist + ingestion + editorial coverage)
 
 ### Frontend production build
 
 - Command:
   - `npm run build` in `frontend`
 - Result:
-  - successful after syntax fix and dynamic fetch behavior for local API
+  - successful with tierlist and admin workflow enhancements
 
 ### API endpoint smoke tests
 
@@ -158,7 +161,7 @@ Legend:
 - Verified HTTP 200 for:
   - `/`, `/units`, `/equips`, `/tierlists`, `/bosses`, `/comps`, `/team-builder`, `/modes`, `/guides`, `/ai-presets`, `/progression`, `/admin`, `/search?q=hart`
 
-## Fixes Applied During Audit
+## Fixes Applied During Audit (Updated)
 
 1) JSX parse error in equips page
 
@@ -180,12 +183,35 @@ Legend:
 - File:
   - `scripts/verify_mvp.sh`
 
+4) Tierlist detail and list quality uplift
+
+- Enriched API response now resolves entry entities and substitute entities with direct links.
+- Detail page now has tier-grade visual grouping, score bars, dependency chips and linkable substitutes.
+- List page now has active filter states and expanded category filters.
+- Files:
+  - `backend/app/services/tierlist.py`
+  - `frontend/src/app/tierlists/[slug]/page.tsx`
+  - `frontend/src/app/tierlists/page.tsx`
+  - `frontend/src/components/cards/tierlist-card.tsx`
+
+5) Admin editorial persistence and ingest preview
+
+- Added lightweight persistent editorial store (`backend/data/editorial_store.json`) for staged/published tier changes and source mappings.
+- Added ingestion preview endpoint flow for public Google Sheet tierlist parsing and mapping registration.
+- Added admin UI actions to run preview import and publish drafts.
+- Files:
+  - `backend/app/services/editorial.py`
+  - `backend/app/services/ingestion_service.py`
+  - `backend/app/routers/admin.py`
+  - `frontend/src/app/admin/actions.ts`
+  - `frontend/src/app/admin/page.tsx`
+
 ## Gap Analysis (What is not yet fully production-ready)
 
-1) Persistence layer
+1) Core gameplay persistence layer
 
-- Current: in-memory repository seeded from mock data.
-- Needed: SQLAlchemy models + migrations + real Postgres read/write path.
+- Current: units/equips/bosses/comps/tierlists are still served from in-memory seeds.
+- Needed: SQLAlchemy models + migrations + real Postgres read/write path for gameplay entities.
 
 2) Auth and role security
 
@@ -202,10 +228,10 @@ Legend:
 - Current: basic in-memory search + schema ready for Postgres FTS.
 - Needed: DB-backed search and optional Meilisearch/Typesense adapter.
 
-5) Editorial workflow persistence
+5) Editorial workflow persistence hardening
 
-- Current: staged/review/publish behavior is API-level mocked responses.
-- Needed: persisted workflow records and review actions in DB.
+- Current: staged/review/publish now persists to local JSON store (good for MVP/dev).
+- Needed: migrate editorial store to Postgres tables (`editorial_changes`, `source_mappings`, `tierlist_history`) for multi-instance consistency.
 
 6) i18n/content depth
 
@@ -214,7 +240,7 @@ Legend:
 
 ## Overall Conclusion
 
-The requested premium companion MVP is implemented and functional at skeleton-to-MVP level across all major modules:
+The requested premium companion MVP is implemented and functional at MVP+ level across all major modules:
 
 - database (units/equips)
 - contextual tier lists
@@ -224,7 +250,7 @@ The requested premium companion MVP is implemented and functional at skeleton-to
 - guides
 - AI presets
 - progression planner
-- admin baseline
-- ingestion architecture
+- admin editorial workflow (with persisted drafts)
+- ingestion architecture + Google Sheet preview path
 
-The codebase is suitable as a strong MVP foundation. Remaining work is primarily productionization (persistent DB integration, auth, jobs, and deeper data operations) rather than missing core product modules.
+The codebase is suitable as a strong foundation for community launch in iterative phases. Remaining work is primarily productionization (full DB integration, auth, jobs, and deeper live data operations), not missing product surface.

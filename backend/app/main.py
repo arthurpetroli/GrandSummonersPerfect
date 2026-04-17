@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.routers import admin, public
+from app.services.sync_runtime import run_startup_sync_once
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 
@@ -16,6 +17,11 @@ app.add_middleware(
 
 app.include_router(public.router, prefix=settings.api_prefix)
 app.include_router(admin.router, prefix=settings.api_prefix)
+
+
+@app.on_event("startup")
+def startup_sync() -> None:
+    run_startup_sync_once()
 
 
 @app.get("/health")

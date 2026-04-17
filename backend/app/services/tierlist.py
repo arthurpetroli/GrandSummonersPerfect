@@ -1,9 +1,9 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from app.repositories.memory_repo import repo
 
 
-DEFAULT_METHODLOGY = {
+DEFAULT_METHODOLOGY = {
     "overall_units": [
         "General utility and cross-mode viability",
         "Mechanic coverage (cleanse, mitigation, accuracy, art generation)",
@@ -20,6 +20,61 @@ DEFAULT_METHODLOGY = {
         "Substitutability and account progression impact",
     ],
 }
+
+
+def _resolve_entity(entity_type: str, entity_id: str) -> Dict[str, Optional[str]]:
+    if entity_type == "unit":
+        entity = repo.get_unit(entity_id)
+        if entity is not None:
+            return {
+                "entity_name": entity.name,
+                "entity_slug": entity.slug,
+                "entity_href": f"/units/{entity.slug}",
+            }
+    if entity_type == "equip":
+        entity = repo.get_equip(entity_id)
+        if entity is not None:
+            return {
+                "entity_name": entity.name,
+                "entity_slug": entity.slug,
+                "entity_href": f"/equips/{entity.slug}",
+            }
+    if entity_type == "boss":
+        entity = repo.get_boss(entity_id)
+        if entity is not None:
+            return {
+                "entity_name": entity.stage_name,
+                "entity_slug": entity.slug,
+                "entity_href": f"/bosses/{entity.slug}",
+            }
+    if entity_type == "comp":
+        entity = repo.get_comp(entity_id)
+        if entity is not None:
+            return {
+                "entity_name": entity.name,
+                "entity_slug": entity.slug,
+                "entity_href": f"/comps/{entity.slug}",
+            }
+
+    return {
+        "entity_name": entity_id,
+        "entity_slug": None,
+        "entity_href": None,
+    }
+
+
+def _resolve_substitutes(entity_type: str, substitute_ids: List[str]) -> List[Dict[str, str]]:
+    resolved_substitutes: List[Dict[str, str]] = []
+    for substitute_id in substitute_ids:
+        resolved = _resolve_entity(entity_type, substitute_id)
+        resolved_substitutes.append(
+            {
+                "id": substitute_id,
+                "name": str(resolved["entity_name"]),
+                "href": resolved["entity_href"] or "",
+            }
+        )
+    return resolved_substitutes
 
 
 def tierlist_change_log(tierlist_slug: str) -> List[Dict[str, str]]:
@@ -48,15 +103,24 @@ def group_entries_by_tier(tierlist_slug: str) -> Dict[str, List[Dict[str, object
 
     grouped: Dict[str, List[Dict[str, object]]] = {}
     for entry in tierlist.entries:
+        resolved = _resolve_entity(entry.entity_type, entry.entity_id)
         grouped.setdefault(entry.tier.value, []).append(
             {
+                "entity_type": entry.entity_type,
                 "entity_id": entry.entity_id,
+                "tier": entry.tier.value,
+                "entity_name": resolved["entity_name"],
+                "entity_slug": resolved["entity_slug"],
+                "entity_href": resolved["entity_href"],
                 "context_score": entry.context_score,
                 "reason": entry.reason,
                 "strong_in": entry.strong_in,
                 "weak_in": entry.weak_in,
                 "dependencies": entry.dependencies,
                 "substitutes": entry.substitutes,
+                "substitute_entities": _resolve_substitutes(
+                    entry.entity_type, entry.substitutes
+                ),
                 "beginner_value": entry.beginner_value,
                 "veteran_value": entry.veteran_value,
                 "ease_of_use": entry.ease_of_use,
@@ -67,6 +131,15 @@ def group_entries_by_tier(tierlist_slug: str) -> Dict[str, List[Dict[str, object
             }
         )
 
+    for tier, entries in grouped.items():
+        grouped[tier] = sorted(
+            entries,
+            key=lambda item: (
+                -float(item.get("context_score", 0)),
+                str(item.get("entity_name", "")),
+            ),
+        )
+
     return grouped
 
 
@@ -75,7 +148,7 @@ def tierlist_methodology(tierlist_slug: str) -> Dict[str, object]:
     if tierlist is None:
         return {"criteria": []}
 
-    criteria = DEFAULT_METHODLOGY.get(
+    criteria = DEFAULT_METHODOLOGY.get(
         tierlist.category,
         [
             "Context-aware impact",

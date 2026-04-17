@@ -47,7 +47,6 @@ REQUIRED_UNIT_TIERLIST_DEFS = [
     ("arena-unit-tier-list", "Arena Tier List", "arena_units", "arena"),
     ("farming-unit-tier-list", "Farming Tier List", "farming_units", "auto"),
     ("bossing-unit-tier-list", "Bossing Tier List", "bossing_units", "endgame"),
-    ("support-unit-tier-list", "Support Tier List", "support_units", "sustain"),
 ]
 
 
@@ -116,6 +115,34 @@ class MemoryRepository:
         self._ensure_required_tierlists()
         self.tierlist_by_slug: Dict[str, Tierlist] = {t.slug: t for t in self.tierlists}
 
+    def _reindex_units(self) -> None:
+        self.unit_by_id = {unit.id: unit for unit in self.units}
+
+    def _reindex_tierlists(self) -> None:
+        self.tierlist_by_slug = {tier.slug: tier for tier in self.tierlists}
+
+    def add_or_update_unit(self, unit: UnitProfile) -> UnitProfile:
+        for index, existing in enumerate(self.units):
+            if existing.id == unit.id or existing.slug == unit.slug:
+                self.units[index] = unit
+                self._reindex_units()
+                return unit
+
+        self.units.append(unit)
+        self._reindex_units()
+        return unit
+
+    def upsert_tierlist(self, tierlist: Tierlist) -> Tierlist:
+        for index, existing in enumerate(self.tierlists):
+            if existing.slug == tierlist.slug:
+                self.tierlists[index] = tierlist
+                self._reindex_tierlists()
+                return tierlist
+
+        self.tierlists.append(tierlist)
+        self._reindex_tierlists()
+        return tierlist
+
     def _score_to_tier(self, score: float) -> TierGrade:
         if score >= 95:
             return TierGrade.SSS
@@ -146,16 +173,22 @@ class MemoryRepository:
             len(unit.equip_dependencies) > 0 and context_score < 90
         )
 
+        if mode is not None and mode not in unit.content_ratings:
+            reason = (
+                "Estimated from adjacent content performance due to limited mode-specific "
+                "sample size."
+            )
+        elif focus_key in unit.values:
+            reason = f"Strong {focus_key} value with contextual utility coverage and role fit."
+        else:
+            reason = "Tier estimated from mode context and baseline reliability."
+
         return TierlistEntry(
             entity_type="unit",
             entity_id=unit.id,
             tier=tier,
             context_score=context_score,
-            reason=(
-                f"Strong {focus_key} value with contextual utility coverage and role fit."
-                if focus_key in unit.values
-                else "Tier estimated from mode context and baseline reliability."
-            ),
+            reason=reason,
             strong_in=list(unit.best_use[:4]),
             weak_in=list(unit.weak_in[:3]),
             dependencies=list(unit.team_dependencies[:3] + unit.equip_dependencies[:2]),
@@ -275,6 +308,12 @@ class MemoryRepository:
             if slug in existing_slugs:
                 continue
             mode_units = [unit for unit in self.units if mode in unit.content_ratings]
+            if len(mode_units) < 6:
+                used_ids = {unit.id for unit in mode_units}
+                fallback_units = [
+                    unit for unit in self.units if unit.id not in used_ids
+                ]
+                mode_units.extend(fallback_units)
             entries = [
                 self._build_unit_entry_from_focus(unit, "endgame", mode=mode)
                 for unit in mode_units
@@ -306,7 +345,10 @@ class MemoryRepository:
                 )
             )
 
-        if "equip-tier-list" not in {tier.slug for tier in self.tierlists}:
+        has_any_overall_equip_tierlist = any(
+            tier.category == "overall_equips" for tier in self.tierlists
+        )
+        if not has_any_overall_equip_tierlist:
             self.tierlists.append(
                 Tierlist(
                     id="tier_equip_tier_list_v1",
@@ -335,8 +377,10 @@ class MemoryRepository:
         min_value: Optional[int] = None,
         tag: Optional[str] = None,
         tags_any: Optional[List[str]] = None,
+        q: Optional[str] = None,
     ) -> List[UnitProfile]:
         result = []
+        query_token = q.lower().strip() if q else None
         tags_any_set: Set[str] = {
             candidate.strip().lower()
             for candidate in (tags_any or [])
@@ -379,6 +423,22 @@ class MemoryRepository:
                 {candidate.lower() for candidate in unit.tags}
             ):
                 continue
+
+            if query_token is not None:
+                searchable_chunks = [
+                    unit.name,
+                    unit.slug,
+                    unit.element,
+                    unit.race,
+                    *unit.tags,
+                    *unit.best_use,
+                    *unit.weak_in,
+                    *unit.passives,
+                ]
+                if not any(
+                    query_token in str(chunk).lower() for chunk in searchable_chunks
+                ):
+                    continue
 
             if focus is not None:
                 value = unit.values.get(focus.lower())

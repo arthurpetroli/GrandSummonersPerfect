@@ -28,3 +28,6 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local persistence stores
+backend/data/*.json

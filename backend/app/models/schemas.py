@@ -46,6 +46,10 @@ class UnitProfile(BaseModel):
     content_ratings: Dict[ContentMode, TierGrade] = Field(default_factory=dict)
     synergy_units: List[str] = Field(default_factory=list)
     substitute_unit_ids: List[str] = Field(default_factory=list)
+    image_url: Optional[str] = None
+    image_thumb_url: Optional[str] = None
+    source_updated_at: Optional[str] = None
+    source_refs: List[str] = Field(default_factory=list)
 
 
 class EquipProfile(BaseModel):

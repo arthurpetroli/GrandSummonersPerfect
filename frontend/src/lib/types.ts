@@ -43,6 +43,11 @@ export interface UnitProfile {
   equip_dependencies: string[];
   values: Record<string, number>;
   content_ratings: Record<string, string>;
+  image_url?: string | null;
+  image_thumb_url?: string | null;
+  source_updated_at?: string | null;
+  source_refs?: string[];
+  external_metrics?: Record<string, number>;
 }
 
 export interface EquipProfile {
@@ -92,6 +97,9 @@ export interface TeamComp {
 export interface TierlistEntry {
   entity_type: string;
   entity_id: string;
+  entity_name?: string;
+  entity_slug?: string | null;
+  entity_href?: string | null;
   tier: string;
   context_score: number;
   reason: string;
@@ -108,12 +116,54 @@ export interface TierlistEntry {
   requires_specific_equips?: boolean;
 }
 
+export interface TierlistGroupedEntry {
+  entity_type: string;
+  entity_id: string;
+  entity_name: string;
+  entity_slug?: string | null;
+  entity_href?: string | null;
+  context_score: number;
+  reason: string;
+  strong_in: string[];
+  weak_in: string[];
+  dependencies: string[];
+  substitutes: string[];
+  substitute_entities: Array<{ id: string; name: string; href: string }>;
+  beginner_value: number;
+  veteran_value: number;
+  ease_of_use: number;
+  consistency: number;
+  niche_or_generalist: string;
+  requires_specific_team?: boolean;
+  requires_specific_equips?: boolean;
+}
+
+export interface TierlistMethodology {
+  category: string;
+  criteria: string[];
+  notes: string[];
+}
+
+export interface TierlistChangeLog {
+  version: string;
+  change: string;
+  reason: string;
+}
+
+export interface TierlistDetailResponse {
+  item: Tierlist;
+  grouped_entries: Record<string, TierlistGroupedEntry[]>;
+  change_history: TierlistChangeLog[];
+  methodology: TierlistMethodology;
+}
+
 export interface Tierlist {
   id: string;
   slug: string;
   title: string;
   category: string;
   version: string;
+  server_region?: ServerRegion;
   mode?: ContentMode;
   entries: TierlistEntry[];
 }
